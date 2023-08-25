@@ -1,218 +1,291 @@
-const { response } = require("express");
-const Category = require("../models/Category");
+const Category = require("../models/category");
 
 function getRandomInt(max) {
-  return Math.floor(Math.random() * max);
-}
+    return Math.floor(Math.random() * max) //returns a random integer within max parameter as range
+}  
 
-// create category
-exports.createCategory = async (request, response) => {
-  try {
-    const { name, description } = request.body;
-    if (!name || !description) {
-      return response.status(400).json({
-        success: false,
-        message: "Empty field",
-      });
+const createCategory = async(req,res)=>{
+
+    try{
+
+        const {name,description} = req.body;
+
+        if(!name || !description){
+            return res.status(400).json({
+                success:false,
+                message:"Missing fields",
+            })
+        };
+
+        const newCategory = await Category.create({
+            name:name,
+            description:description,
+        });
+
+
+        if(!newCategory){
+            return res.status(500).json({
+                success:false,
+                message:"Error in pushing Category , try again",
+            })
+        };
+
+
+        res.status(200).json({
+            success:true,
+            message:"Category created successfully",
+        });
+
+        
+    }catch(err){
+        console.log("Err in creating category-> ", err);
+        return res.status(500).json({
+            success:false,
+            message:"Soemthing went wrong in creating a category , Try again!",
+        })
     }
 
-    const categoryDetails = await Category.create({
-      name: name,
-      description: description,
-    });
 
-    if (!categoryDetails) {
-      return response.status(400).json({
-        success: false,
-        message: "Somthing went wrong",
-      });
-    }
-
-    return response.status(200).json({
-      success: true,
-      message: "Category created successfully",
-    });
-  } catch (err) {
-    console.log(err);
-    response.status(500).json({
-      success: false,
-      message: "Internal Server error",
-      error: err.message,
-    });
-  }
 };
 
-// get all category
-exports.getAllCategory = async (request, response) => {
-  try {
-    const categories = await Category.find(
-      {},
-      { name: true, description: true }
-    );
 
-    if (!categories) {
-      return response.status(404).json({
-        success: false,
-        message: "Something went wrong",
-      });
+const showAllCategories = async(req,res)=>{
+
+    try{
+
+        const categories = await Category.find(
+            {},
+            {name:true,description:true}
+        );
+
+        if(!categories){
+            return res.status(500).json({
+                success:false,
+                message:"Something went wrong while fetching all categories",
+            })
+        };
+
+        if(categories.length === 0){
+            return res.status(400).json({
+                success:false,
+                message:"No categories found",
+            })
+        };
+
+        res.status(200).json({
+            success:true,
+            data:categories,
+            message:"All categories fetched",
+        });
+
+
+        
+    }catch(err){
+        console.log("Err in showAllCategories-> ", err);
+        return res.status(500).json({
+            success:false,
+            message:"Soemthing went wrong in showing All Categories , Try again!",
+        })
     }
 
-    if (categories.length === 0) {
-      return response.status(400).json({
-        success: false,
-        message: "No Categories found",
-      });
-    }
-    return response.status(200).json({
-      success: true,
-      message: "Fetched all the Categories",
-      data: tags,
-    });
-  } catch (err) {
-    console.log(err);
-    return response.status(500).json({
-      success: false,
-      message: "Internal Server error",
-      error: err.message,
-    });
-  }
+
 };
 
-// category page details
-exports.categoryPageDetails = async (request, response) => {
-  try {
-    // fetch
-    const { categoryId } = request.body;
 
-    // getCategory
-    const selectedCategory = await Category.findById(categoryId)
-      .populate("courses")
-      .exec();
 
-    // validate
-    if (!selectedCategory) {
-      return response.status(404).json({
-        success: false,
-        message: "Course not found",
-      });
-    }
+const categoryPageDetails = async(req,res)=>{
 
-    // get courses for different category
-    const differentCategory = await Category.findById({
-      _id: { $ne: categoryId },
-    })
-      .populate({
-        path: "courses",
-        match: { status: "published" },
-        populate: "instructor",
-        populate: "ratingAndReview",
-      })
-      .exec();
+    try{
 
-    const allCategories = await Category.find({}).populate({
-      path: "course",
-      match: { status: "Published" },
-      populate: {
-        path: "instructor",
-      },
-    });
+        const {categoryId} = req.body;
 
-    const allCourses = allCategories.flatMap((category) => category.courses);
-    // top selling courses
-    const topSellingCourses = allCourses
-      .sort((a, b) => b.studentEnrolled.length > a.studentEnrolled.length)
-      .slice(0, 10);
+        if(!categoryId){
+            console.log("the body incoming-> ", req.body);
+            return res.status(400).json({
+                success:false,
+                message:"Missing fields",
+            })
+        };
 
-    // return
-    return response.status(200).json({
-      success: true,
-      message: "Courses Fetched",
-      data: {
-        selectedCategory,
-        differentCategory,
-        topSellingCourses,
-      },
-    });
-  } catch (err) {
-    console.log(err);
-    return response.status(500).json({
-      success: false,
-      message: "Internal Server error",
-      error: err.message,
-    });
-  }
-};
+        const categoryDetails = await Category.findById(categoryId).populate({
+            path:"courses",
+            match:{status:"Published"},
+            populate:"ratingAndReviews",
+            populate:"instructor"
+        }).exec()
 
-// catergoriesSorted
+        if(!categoryDetails){
+            return res.status(500).json({
+                success:false,
+                message:"Soemthing went wrong , try again",
+            })
+        };
 
-exports.categoriesSortedPage = async (request, response) => {
-  try {
-    const { categoryId } = request.body;
+        const differentCategories = await Category.find(
+            {_id: {$ne:categoryId}}
+        );
 
-    if (!categoryId) {
-      return response.status(400).json({
-        success: false,
-        message: "Course not found",
-      });
-    }
+        const randomCategoryDetails = await Category.findOne(
+            differentCategories[getRandomInt(differentCategories.length)]._id
+        ).populate({
+            path:"courses",
+            match:{status:"Published"},
+            populate:"ratingAndReviews"
+        }).exec()
 
-    const categoryDetails = await Category.findById(categoryId)
-      .populate("courses")
-      .exec((err, results) => {
-        if (err) {
-          return response.status(400).json({
-            success: false,
-            message: "Something went wrong",
-          });
-        } else {
-          Category.aggregate([
-            { $match: { _id: categoryId } },
-            {
-              $project: {
-                name: 1,
-                courses: 1,
-                numberOfStudents: { $size: "$studentEnrolled" },
-              },
-            },
-            { $sort: { numberOfStudents: -1 } },
-          ]).exec((err, sortedResults) => {
-            if (err) {
-              return response.status(400).json({
-                success: false,
-                message: "Something went wrong",
-              });
-            } else {
-              console.log("Results from sorted -> ", sortedResults);
-              categoryDetails = sortedResults;
+        //additional endpoint for getting results based on top selling courses implemented -> test it
+
+
+        //top selling courses among all categories
+        //to get a categorized list of courses we are flatting up the courses from all categories
+        //else we could ve just called courses for all course objects 
+        //to get a list but in random course order
+
+        const allCategories = await Category.find({}).populate({
+            path:"courses",
+            match:{status:"Published"},
+            populate:{
+                path:"instructor",
             }
-          });
-        }
-      });
+        });//this returns array of all category objects with populated courses(+instructor)
 
-    if (!categoryDetails) {
-      return response.status(400).json({
-        success: false,
-        message: "Something went wrong",
-      });
+        const allCourses = allCategories.flatMap((category)=>category.courses); //this returns all courses
+
+        //getting top 10 selling courses all categories
+        const topSellingCourses = 
+            allCourses.sort( (a,b)=> b.studentsEnrolled.length - a.studentsEnrolled.length)
+            .slice(0,10)
+
+
+        res.status(200).json({
+            success:true,
+            data:{categoryDetails,randomCategoryDetails,topSellingCourses},
+            message:"Category Details fetched",
+        });
+
+
+
+
+        
+    }catch(err){
+        console.log("Err in categoryPageDetails-> ", err);
+        return res.status(500).json({
+            success:false,
+            message:"Soemthing went wrong in fetching category Page Details , Try again!",
+        })
     }
 
-    const differentCategories = await Category.find({
-      _id: { $ne: categoryId },
-    })
-      .populate("courses")
-      .exec();
 
-    return response.status(200).json({
-      success: true,
-      message: "Sorted Categories fetched",
-      data: { categoryDetails, differentCategories },
-    });
-  } catch (err) {
-    console.log(err);
-    return response.status(500).json({
-      success: false,
-      message: "Internal Server Error",
-      error: err.message,
-    });
-  }
+};
+
+
+
+
+//test endpoint for sorting logic
+const categoryPageDetailsSorted = async(req,res)=>{
+
+    try{
+
+        const {categoryId} = req.body; //can also be done using name ,provided names are unique in model
+
+        if(!categoryId){
+            return res.status(400).json({
+                success:false,
+                message:"Missing fields",
+            })
+        };
+        //this is a single 
+        const categoryDetails = await Category.findById(categoryId).populate("courses").exec( (err,results)=>{
+            
+            if(err){
+
+                console.log("Err in executing aggregation pipeline");
+                return res.status(400).json({
+                    success:false,
+                    message:"Something went wrong, try again",
+                });
+
+            }else{
+                //aggregate pipeline
+                Category.aggregate([
+                    {
+
+                        //match check whether it does anything to the results
+                        $match:{_id:categoryId}
+
+                    },
+                    {
+                        //project shape up the doc by adding a new param field of no of students
+                        $project:{
+                            name:1,//check if populated courses is returned or not
+                            courses:1,
+                            numberOfStudents:{ $size: "$studentsEnrolled" }
+                            //if above statement this fails here try couses.studentsEnrolled
+                        }
+
+                    },
+                    {
+                        //sort by new projected field 
+                        $sort:{
+                            numberOfStudents:-1 //for descending sort
+                        }
+
+                    } //execute aggregate pipeline's result (as sortedResults)
+                ]).exec( (err,sortedResults)=>{
+                    if(err){
+
+                        console.log("Err in executing aggregation pipeline");
+                        return res.status(400).json({
+                            success:false,
+                            message:"Something went wrong, try again",
+                        });
+
+                    }else{
+                        console.log("Results from aggregate pipeline -> , " , sortedResults);
+                        categoryDetails = sortedResults;
+                    }
+                })
+
+            }
+        });
+
+        if(!categoryDetails){
+            return res.status(500).json({
+                success:false,
+                message:"Soemthing went wrong , try again",
+            })
+        };
+
+        const differentCategories = await Category.find(
+            {_id: {$ne:categoryId}}
+        ).populate("courses").exec();
+
+        res.status(200).json({
+            success:true,
+            data:{categoryDetails,differentCategories},
+            message:"Category Details are sorted & fetched",
+        });
+
+
+
+
+        
+    }catch(err){
+        console.log("Err in categoryPageDetailsSorted-> ", err);
+        return res.status(500).json({
+            success:false,
+            message:"Soemthing went wrong in fetching category Page Details (categoryPageDetailsSorted) , Try again!",
+        })
+    }
+
+
+};
+
+
+module.exports ={
+    categoryPageDetails,
+    showAllCategories,
+    createCategory,
+    categoryPageDetailsSorted,
+
 };

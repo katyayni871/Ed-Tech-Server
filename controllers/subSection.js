@@ -1,140 +1,183 @@
-const SubSection = require("../models/SubSection");
-const Section = require("../models/Section");
-const { cloudinaryUpload } = require("../utils/imageUploader");
+const SubSection = require("../models/subSections");
+const Section = require("../models/sections");
+ 
+const {uploadImageToCloudinary} = require("../utils/cloudinaryUploader");
+
 require("dotenv").config();
 
-// create
-exports.createSubSection = async (request, response) => {
-  try {
-    // fetch
-    const { title, description, duration } = request.body;
-    const { sectionId } = request.params;
-    const { video } = request.files.videoFile;
 
-    // Upload
-    const videoUploadDetails = await cloudinaryUpload(
-      video,
-      process.env.VIDEO_FILE_UPLOAD
-    );
+const createSubSection = async(req,res)=>{
 
-    // create
-    const createdSubSection = await SubSection.create({
-      title: title,
-      description: description,
-      duration: duration,
-      videoUrl: videoUploadDetails.secure_url,
-    });
+    try{
 
-    // update section
-    const updatedSection = await Section.findByIdAndUpdate(
-      sectionId,
-      { $push: { subSection: createdSubSection._id } },
-      { new: true }
-    )
-      .populate("subSection")
-      .exec();
+        const {title,description,sectionId} = req.body;
 
-    // response
-    response.status(200).json({
-      success: true,
-      message: "Subsection Created",
-    });
-  } catch (err) {
-    console.log(err);
-    response.status(500).json({
-      success: false,
-      message: "Internal Server error",
-      error: err.message,
-    });
-  }
+        //fetching videoFile
+        const {videoFile} = req.files;
+
+        if (!title || !description || !videoFile || !sectionId) {
+            return res
+              .status(404)
+              .json({
+                    success: false,
+                    message: "Missing fields",
+                })
+        };
+
+        //uploading file to cloudinary
+        const fileUpload = await uploadImageToCloudinary(videoFile,process.env.CLOUDINARY_VIDEO_FOLDER);
+
+        //validate
+
+        //getting link
+        const videoUrl = fileUpload.secure_url;
+
+        const newSubSection = await SubSection.create({
+            title:title,
+            timeDuration: `${fileUpload.duration}`, //duration from cloud return object
+            description:description,
+            videoUrl:videoUrl,
+        });
+
+        //update respective section with new subSection id
+        const updatedSection = await Section.findByIdAndUpdate(sectionId,{
+            $push:{
+                subSection:newSubSection._id
+            }
+        },{new:true}).populate("subSection").exec();
+
+        //validate
+
+        //response
+        res.status(200).json({
+            success:true,
+            data:updatedSection,
+            message:"New sub-section created",
+        });
+
+
+
+
+    }catch(err){
+        console.error("Error in creating Subsection->", err);
+		res.status(500).json({
+			success: false,
+			message: "Something went wrong in creating subSection",
+		});
+    }
+
+
 };
 
-// update
-exports.editSubSection = async (request, response) => {
-  try {
-    const { subSectionId, title, description } = request.body;
-    const { sectionId } = request.params;
-    const videoFile = request.files.videoFile;
+const updateSubSection = async(req,res)=>{
 
-    if (!subSectionId || !sectionId || !title || !description) {
-      return response.status(400).json({
-        success: false,
-        message: "Empty fields",
-      });
+    try{
+        
+        const {title,description,subSectionId} = req.body;
+
+        //validate subSectionId
+        const subSection = await SubSection.findById(subSectionId);
+
+        if(!subSection){
+            return res.status(400).json({
+                success:false,
+                message:"Invalid parameter",
+            })
+        };
+
+        //if any field is present in body update it
+        if(title !== undefined){
+            subSection.title = title
+        };
+
+        if(description !== undefined){
+            subSection.description = description
+        };
+
+     
+        if(req.files && req.files.videoFile !== undefined){
+            console.log("inside cideo update of subSection update");
+            const uploadUpdate = await uploadImageToCloudinary(req.files.videoFile ,
+                 process.env.CLOUDINARY_VIDEO_FOLDER);
+
+            subSection.timeDuration = uploadUpdate.duration
+            subSection.videoUrl = uploadUpdate.secure_url
+        };
+
+        //save updates
+        await subSection.save();
+
+        res.status(200).json({
+            success:true,
+            message:"SubSection updated successfully",
+        });
+
+
+
+    }catch(err){
+        console.error("Error in updateSubSection->", err);
+		res.status(500).json({
+			success: false,
+			message: "Something went wrong in updating subSection",
+		});
     }
 
-    const subSection = await SubSection.findById(subSectionId);
-    if (!subSection) {
-      return response.status(404).json({
-        success: false,
-        message: "Subsection not found",
-      });
-    }
 
-    subSection.title = title;
-    subSection.description = description;
-
-    if (videoFile !== undefined) {
-      const uploadResponse = await cloudinaryUpload(
-        videoFile,
-        process.env.FOLDER_NAME
-      );
-      subSection.videoUrl = uploadResponse.secure_url;
-      subSection.duration = `${uploadResponse.duration}`;
-    }
-
-    await subSection.save();
-
-    const updatedSection = await Section.findById(sectionId)
-      .populate("subSection")
-      .exec();
-
-    return response.status(200).json({
-      success: true,
-      message: "Sub Section updated successfully",
-      data: updatedSection,
-    });
-  } catch (err) {
-    console.log(err);
-    return response.status(500).json({
-      success: false,
-      message: "Server error, try again",
-      error: err.message,
-    });
-  }
 };
 
-// delete
-exports.deleteSubSection = async (request, response) => {
-  try {
-    const { subSectionId } = request.body;
-    const { sectionId } = request.params;
+const deleteSubSection = async(req,res)=>{
 
-    const subSection = await SubSection.findByIdAndDelete(subSectionId);
-    if (!subSection) {
-      return response.status(404).json({
-        success: false,
-        message: "Sub Section not found",
-      });
+    try{
+
+        //try implementing a pre delete hook to subsection to delete the refernces in section objects
+
+        const {subSectionId,sectionId} = req.body;
+
+        //validate
+
+        //delete subSection
+        const deleteSubSection = await SubSection.findByIdAndDelete(subSectionId);
+
+
+        //validation
+        if(!deleteSubSection){
+            return res.status(400).json({
+                success:false,
+                message:"Invalid parameter",
+            })
+        };
+
+        //delete link form section object //add validation of sectionId
+        const deleteLink = await Section.findByIdAndUpdate(sectionId,{
+            $pull:{
+                subSection:subSectionId,
+            }
+        },{new:true});
+
+        //response
+        res.status(200).json({
+            success:true,
+            message:"SubSection deleted successfully",
+        });
+
+
+
+
+
+    }catch(err){
+        console.error("Error in deleteSubSection->", err);
+		res.status(500).json({
+			success: false,
+			message: "Something went wrong in deleting SubSection",
+		});
     }
 
-    const updatedSection = await Section.findByIdAndUpdate(
-      sectionId,
-      { $pull: { subSection: subSectionId } },
-      { new: true }
-    );
 
-    response.status(200).json({
-      success: true,
-      message: "Sub Section deleted successfully",
-      data: updatedSection,
-    });
-  } catch (err) {
-    console.log(err);
-    return response.status(500).json({
-      success: false,
-      message: "Server error",
-      error: err.message,
-    });
-  }
+};
+
+
+module.exports = {
+    createSubSection,
+    updateSubSection,
+    deleteSubSection
 };

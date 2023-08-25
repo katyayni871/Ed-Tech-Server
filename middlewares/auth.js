@@ -1,97 +1,147 @@
-const jwt = require("jsonwebtoken");
+
 require("dotenv").config();
-const User = require("../models/User");
+const jwt = require("jsonwebtoken");
 
-// Auth
-exports.auth = async (request, response, next) => {
-  try {
-    //Fetch
-    //3 ways to fetch it according to preference wise
-    const token =
-      request.cookies.token ||
-      request.token ||
-      request.header("Authorisation").replace("Bearer ", "");
+//auth
+const auth =async (req,res,next)=>{
 
-    if (!token) {
-      return response.status(401).json({
-        success: false,
-        message: "Token not found",
-      });
+    try{
+
+        const token = req.cookies.token || 
+            req.header("Authorisation").replace("Bearer ", "");
+        if(!token || token === undefined){
+            return res.status(400).json({
+                success:false,
+                message:"Token missing"
+            })
+        };
+
+
+
+        try{
+            const payload = jwt.verify(token, process.env.JWT_SECRET );
+
+            //add the payload to the request object for access to further middlewares/controllers 
+            req.user = payload;
+
+        }catch(err){
+            console.log("Err in auth",err);
+            return res.status(400).json({
+                success:false,
+                message:"invalid token or Token expired , login again!"
+            })
+        };
+
+        next();
+
+    }catch(err){
+        console.log("Error in auth middleware-> ",err);
+
+        return res.status(500).json({
+            success:false,
+            message:"Something wrong in auth middleware",
+        })
     }
 
-    //decode
-    try {
-      const decode = jwt.verify(token, process.env.JWT_SECRET);
-      request.user = decode;
-    } catch (err) {
-      return response.status(403).json({
-        success: false,
-        message: "UnAutharised",
-      });
+
+}
+
+//isStudent
+const isStudent = async(req,res,next)=>{
+
+    try{
+
+        const payload = req.user;
+
+        if(payload.role !== "Student"){
+            return res.status(400).json({
+                success:false,
+                message:"This is a Students' only route",
+            })
+        };
+
+        next();
+
+        
+
+    }catch(err){
+        console.log("Error in isStudent middleware-> ",err);
+
+        return res.status(500).json({
+            success:false,
+            message:"Something wrong in isStudent middleware",
+        })
     }
 
-    // go to next parameter
-    next();
-  } catch (err) {
-    console.log(err);
-    response.status(500).json({
-      success: false,
-      message: "Something went wrong",
-    });
-  }
-};
+}
 
-// isStudent
-exports.isStudent = async (request, response, next) => {
-  try {
-    if (request.user.accountType !== "Student") {
-      return response.status(400).json({
-        success: false,
-        message: "This is a protected route for student only",
-      });
+
+
+
+//isInstructor
+const isInstructor = async(req,res,next)=>{
+
+    try{
+
+        const payload = req.user;
+
+        if(payload.role !== "Instructor"){
+            return res.status(400).json({
+                success:false,
+                message:"This is a Instructors' only route",
+            })
+        };
+
+        next();
+        
+
+    }catch(err){
+        console.log("Error in isInstructor middleware-> ",err);
+
+        return res.status(500).json({
+            success:false,
+            message:"Something wrong in isInstructor middleware",
+        })
     }
-    next();
-  } catch (err) {
-    console.log(err);
-    return response.status(500).json({
-      success: false,
-      message: "Something went wrong",
-    });
-  }
-};
-// isInstructor
-exports.isInstructor = async (request, response, next) => {
-  try {
-    if (request.user.accountType !== "Instructor") {
-      return response.status(400).json({
-        success: false,
-        message: "This is a protected route for instructor only",
-      });
+
+}
+
+
+
+//isAdmin
+const isAdmin = async(req,res,next)=>{
+
+    try{
+
+        const payload = req.user;
+
+        if(payload.role !== "Admin"){
+            return res.status(400).json({
+                success:false,
+                message:"This is a Admins' only route",
+            })
+        };
+
+        next();
+
+
+        
+
+    }catch(err){
+        console.log("Error in isAdmin middleware-> ",err);
+
+        return res.status(500).json({
+            success:false,
+            message:"Something wrong in isAdmin middleware",
+        })
     }
-    next();
-  } catch (err) {
-    console.log(err);
-    return response.status(500).json({
-      success: false,
-      message: "Something went wrong",
-    });
-  }
-};
-// isAdmin
-exports.isAdmin = async (request, response, next) => {
-  try {
-    if (request.user.accountType !== "Admin") {
-      return response.status(400).json({
-        success: false,
-        message: "This is a protected route for admin only",
-      });
-    }
-    next();
-  } catch (err) {
-    console.log(err);
-    return response.status(500).json({
-      success: false,
-      message: "Something went wrong",
-    });
-  }
-};
+
+}
+
+
+module.exports={
+    auth,
+    isStudent,
+    isAdmin,
+    isInstructor
+}

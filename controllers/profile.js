@@ -1,189 +1,287 @@
-const Profile = require("../models/Profile");
-const User = require("../models/User");
-const Course = require("../models/Course");
-const { cloudinaryUpload } = require("../utils/imageUploader");
-require("dotenv").config();
+const User = require("../models/users");
+const Profile = require("../models/profiles");
+const Course = require("../models/courses");
 
-exports.editProfile = async (request, response) => {
-  try {
-    const { dateOfBirth, about, gender, contactNumber } = request.body;
+const schedule = require("node-schedule");
 
-    if (!gender || !contactNumber) {
-      return response.status(400).json({
-        success: false,
-        message: "Empty fields",
-      });
+const {uploadImageToCloudinary} = require("../utils/cloudinaryUploader");
+
+
+
+
+const updateProfile = async(req,res)=>{
+
+    try{
+
+        //to initialize destructured fields -> state here const {gender="",dob=""} req.body;
+
+        const {gender,dateOfBirth,about,contactNumber} = req.body;
+
+        const {id} = req.user;
+
+        const user = await User.findById(id);
+
+        const profile = await Profile.findById(user.additionalDetails);
+
+        //check if field is there in req , then update
+        if(gender !== undefined){
+            profile.gender = gender
+        };
+
+        if(dateOfBirth !== undefined){
+            profile.dateOfBirth = dateOfBirth
+        };
+
+        if(about !== undefined){
+            profile.about = about
+        };
+
+        if(contactNumber !== undefined){
+            profile.contactNumber = contactNumber
+        };
+
+
+
+        //if contact number already exists update rest of available fields
+        // if(profile.contactNumber !== null){
+
+        //     profile.gender = gender;
+        //     profile.dateOfBirth = dateOfBirth;
+        //     profile.about = about;
+
+        // }else{//contact number doesn't already exists put in contact value
+
+        //     profile.gender = gender;
+        //     profile.dateOfBirth = dateOfBirth;
+        //     profile.about = about;
+        //     profile.contactNumber = contactNumber;
+
+        // };
+
+        await profile.save();
+
+        const updatedUser = await User.findById(id)
+            .populate("additionalDetails").exec();
+
+        updatedUser.password = null;    
+
+        res.status(200).json({
+            success:true,
+            data:updatedUser,
+            message:"Profile Details updated successfully",
+        });
+
+
+    }catch(err){
+        console.log("Err in updateProfile -> ", err);
+        return res.status(500).json({
+            success:false,
+            message:"Something went wrong in updating profile , Try again!",
+        })
     }
-
-    const userId = request.user.id;
-    const userDetails = await User.findById(userId);
-    console.log(userDetails.additionalDetails);
-
-    const profileDetails = await Profile.findById(
-      userDetails.additionalDetails
-    );
-
-    console.log(profileDetails);
-
-    profileDetails.dateOfBirth = dateOfBirth;
-    profileDetails.about = about;
-    profileDetails.gender = gender;
-    profileDetails.contactNumber = contactNumber;
-
-    await profileDetails.save();
-
-    response.status(200).json({
-      success: true,
-      message: "Profile Updated",
-      data: profileDetails,
-    });
-  } catch (err) {
-    console.log(err);
-    response.status(500).json({
-      success: false,
-      message: "Internal Server error",
-      error: err.message,
-    });
-  }
 };
 
-// Getallprofile details
 
-exports.getProfileDetails = async (request, response) => {
-  try {
-    const userId = request.user.id;
+const deleteAccount = async(req,res)=>{
 
-    if (!userId) {
-      return response.status(400).json({
-        success: false,
-        message: "User Id not found",
-      });
+    try{
+
+        const {id} = req.user;
+
+        const user = await User.findById(id);
+
+        //scheduling deletion job
+        const scheduledTime = new Date(Date.now() + 1 * 1 * 3 * 60 * 1000);
+        const deletionJob = schedule.scheduleJob(scheduledTime, async ()=>{
+
+            //delete corresponding profile to user
+            const deleteProfile = await Profile.findByIdAndDelete(user.additionalDetails);
+
+            //deleting user courseLinks from courses
+            const userCourses = user.courses;
+            //go to each course and delete user from studentsEnrolled 
+            for(const singleCourseId of userCourses ){
+                //fetch current iteration course
+                const course = await Course.findById(singleCourseId);
+                //if the course exists
+                if(course){
+                    const deleteUserFromCourse = await Course.findByIdAndUpdate(course._id , {
+                            $pull: {
+                                studentsEnrolled: id,
+                            },
+                        },
+                        {new:true}
+                    );
+                };
+            };
+
+            //delete user
+            const deleteUser = await User.findByIdAndDelete(id);
+            console.log(`User deleted with all links removed :)`);
+
+        });
+
+        //validate deletionJob******************
+
+        res.status(200).json({
+            success:"scheduled",
+            data:deletionJob.name,
+            message:`Deletion Job has been scheduled successfully on-> ${deletionJob.nextInvocation()}`,
+        })
+
+
+
+
+    }catch(err){
+        console.log("Err in deleteAccount   -> ", err);
+        return res.status(500).json({
+            success:false,
+            message:"Something went wrong in deleting Account , Try again!",
+        })
     }
-
-    const userDetails = await User.findById(userId)
-      .populate("additionalDetails")
-      .exec();
-    // const profileDetails = await Profile.findById({
-    //   _id: userDetails.additionalDetails,
-    // });
-
-    response.status(200).json({
-      success: true,
-      message: "Profile details fetched",
-      userDetails,
-    });
-  } catch (err) {
-    console.log(err);
-    response.status(500).json({
-      success: false,
-      message: "Internal Server error",
-      error: err.message,
-    });
-  }
 };
 
-// delete account
-exports.deleteAccount = async (request, response) => {
-  try {
-    // get id
-    const userId = request.user.id;
-    console.log(userId);
-    // validation
-    if (!userId) {
-      return response.status(400).json({
-        success: false,
-        message: "User id not found",
-      });
+
+const getAllUserDetails = async(req,res)=>{
+
+    try{
+
+        const {id} = req.user;
+
+        const user = await User.findById(id).populate("additionalDetails").exec();
+
+        if(!user){
+
+            return res.status(400).json({
+                success:false,
+                message:"User not found",
+            })
+        };
+        user.password =null; //or construct a customized data object to send in res 
+
+        res.status(200).json({
+            success:true,
+            data:user,
+            message:"User Details fetched",
+        })
+
+
+    }catch(err){
+        console.log("Err in  getAllUserDetails  -> ", err);
+        return res.status(500).json({
+            success:false,
+            message:"Something went wrong in getAllUserDetails , Try again!",
+        })
     }
-
-    //find user
-    const userDetails = await User.findById({ _id: userId });
-
-    // delete profile
-    await Profile.findByIdAndDelete({ _id: userDetails.additionalDetails });
-    // delete user
-    await User.findByIdAndDelete({ _id: userId });
-
-    // enrolled field update
-
-    // response
-    response.status(200).json({
-      success: true,
-      message: "Account deleted successfully",
-    });
-  } catch (err) {
-    console.log(err);
-    response.status(500).json({
-      success: false,
-      message: "Internal Server error",
-      error: err.message,
-    });
-  }
 };
 
-exports.updateProfilePicture = async (request, response) => {
-  try {
-    const imageFile = request.files.imageFile;
-    const userId = request.user.id;
 
-    const profilePicture = await cloudinaryUpload(
-      imageFile,
-      process.env.IMAGE_FOLDER_NAME
-    );
+const updateDisplayPicture = async(req,res)=>{
 
-    const updatedProfile = await User.findByIdAndUpdate(
-      userId,
-      { image: profilePicture.secure_url },
-      { new: true }
-    );
 
-    return response.status(200).json({
-      success: true,
-      message: "Profile picture is updated",
-      data: updatedProfile,
-    });
-  } catch (err) {
-    console.log(err);
-    return response.status(500).json({
-      success: false,
-      message: "Server error, try again",
-      error: err.message,
-    });
-  }
+    try{
+
+        const {id} = req.user;
+
+        const {imageFile} = req.files;
+
+        //validate image file
+        if(!imageFile){
+            return res.status(400).json({
+                success:false,
+                message:"Image not found",
+            })
+        };
+
+        //upload to cloudinary
+        const uploadCloud = await uploadImageToCloudinary(imageFile,process.env.CLOUDINARY_FOLDER);
+
+        //update user image link
+        const updateUser = await User.findByIdAndUpdate(id,{
+            image:uploadCloud.secure_url,
+        },{new:true}).populate("additionalDetails").exec();
+
+        //validation
+        if(!updateUser){
+            return res.status(400).json({
+                success:false,
+                message:"Update failed, try again!",
+            })
+        };
+
+        //response
+        res.status(200).json({
+            success:true,
+            data:updateUser,
+            message:"User Image uploaded",
+        });
+
+
+    }catch(err){
+        console.log("Err in updateDisplayPicture   -> ", err);
+        return res.status(500).json({
+            success:false,
+            message:"Something went wrong in updateDisplayPicture , Try again!",
+        })
+    }
 };
 
-exports.instructorDashboard = async (request, response) => {
-  try {
-    const instructor = request.user.id;
-    const courses = await Course.findOne({ instructor: instructor });
-    const courseData = courses.map((course) => {
-      const totalStudentEnrolled = course.studentEnrolled.length;
-      const totalAmount = totalStudentEnrolled * course.price;
 
-      const courseWithStats = {
-        _id: course.id,
-        courseName: course.courseName,
-        courseDescription: course.courseDescription,
-        totalStudentEnrolled,
-        totalAmount,
-      };
+const getEnrolledCourses = async(req,res)=>{
 
-      return courseWithStats;
-    });
+    try{
 
-    return response.status(200).json({
-      success: true,
-      message: "Instructor Dashboard fetched",
-      data: courseData,
-    });
-  } catch (err) {
-    console.log(err);
-    return response.status(500).json({
-      success: false,
-      message: "Server error, try again",
-      error: err.message,
-    });
-  }
+        
+        const {id} = req.user;
+
+        const user = await User.findById(id).populate({
+            path: "courses",
+            populate: {
+              path: "courseContent",
+              populate: {
+                path: "subSection",
+              },
+            },
+          }).exec();
+
+        //validate
+        if(!user){
+
+            return res.status(400).json({
+                success:false,
+                message:"User not found",
+            })
+        };
+        //if no courses exist -> customise response
+        //response
+        user.password = null;
+
+        //try sending response only the courses
+        res.status(200).json({
+            success:true,
+            data:user.courses,
+            message:"User Details fetched",
+        })
+
+
+    }catch(err){
+        console.log("Err in  getEnrolledCourses  -> ", err);
+        return res.status(500).json({
+            success:false,
+            message:"Something went wrong in getEnrolledCourses , Try again!",
+        })
+    }
 };
-// Task Scheduing
-// Cron JOb
+
+
+
+
+
+
+module.exports = {
+    updateProfile,
+    updateDisplayPicture,
+    getAllUserDetails,
+    getEnrolledCourses,
+    deleteAccount,
+}

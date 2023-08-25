@@ -1,23 +1,25 @@
 const express = require("express");
 const router = express.Router();
 
-// Import
-const { auth } = require("../middlewares/auth");
+//route middlewares
+const {auth} = require("../middlewares/auth");
 
-const {
-  editProfile,
-  getProfileDetails,
-  deleteAccount,
-  updateProfilePicture,
-  instructorDashboard,
-} = require("../controllers/profile");
+//fetching controllers
+const {updateProfile,
+    updateDisplayPicture,
+    getAllUserDetails,
+    getEnrolledCourses,
+    deleteAccount} = require("../controllers/profile"); 
 
-// queries
 
-router.put("/:userId/editProfile", editProfile);
-router.get("/:userId/getProfileDetails", getProfileDetails);
-router.delete("/deleteAccount", auth, deleteAccount);
-router.put("/:userId/updateProfilePicture", updateProfilePicture);
-router.get("/:userId/instructorDashboard", instructorDashboard);
+
+//routes
+router.put("/updateProfile", auth , updateProfile);
+router.put("/updateDisplayPicture" , auth , updateDisplayPicture);
+router.delete("/deleteProfile" , auth , deleteAccount); //yet to be tested
+router.get("/getUserDetails" , auth , getAllUserDetails);
+router.get("/getEnrolledCourses" , auth , getEnrolledCourses);
+
+
 
 module.exports = router;

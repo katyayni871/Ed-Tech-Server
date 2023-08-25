@@ -1,13 +1,22 @@
 const express = require("express");
 const router = express.Router();
 
-// Import
-const { auth, isStudent } = require("../middlewares/auth");
+//route middlewares
+const {auth,isStudent} = require("../middlewares/auth");
 
-const { capturePayment, verifySignature } = require("../controllers/payment");
+//fetching controllers
+const {capturePayment,
+    verifySignature,
+    sendPaymentConfirmation} =require("../controllers/razorpay");
 
-// queries
-router.post("/capturePayment", auth, isStudent, capturePayment);
-router.post("/verifySignature", auth, isStudent, verifySignature);
+
+
+//routes
+router.post("/capturePayment",auth, isStudent, capturePayment);
+router.post("/verifySignature" , auth,isStudent, verifySignature); //auth req? -> no harm
+router.post("/sendConfirmationEmail", auth,isStudent,sendPaymentConfirmation);
+
+
+
 
 module.exports = router;

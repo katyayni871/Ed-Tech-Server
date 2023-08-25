@@ -1,43 +1,59 @@
+//dependencies
 const express = require("express");
-const app = express();
-const courseRoute = require("./routes/course");
-const paymentRoute = require("./routes/payment");
-const profileRoute = require("./routes/profile");
-const userRoute = require("./routes/auth");
-const { cloudinaryConnect } = require("./config/cloudinary");
+const fileUpload = require("express-fileupload");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
-const fileUpload = require("express-fileupload");
-const dbconnect = require("./config/database");
 require("dotenv").config();
-const PORT = process.env.PORT || 4000;
 
-dbconnect();
-cloudinaryConnect();
+//the server app
+const app = express();
 
+//connections
+const dbConnect = require("./config/db");
+const {cloudinaryConnect} = require("./config/cloudinary");
+
+
+//import routes
+const userRouter = require("./routes/user");
+const profileRouter = require("./routes/profile");
+const paymentRouter = require("./routes/payment");
+const courseRouter = require("./routes/course");
+
+
+
+//app's port
+const PORT = process.env.PORT || 4001;
+
+
+//middlewares
 app.use(express.json());
 app.use(cookieParser());
-app.use(
-  fileUpload({
-    useTempFiles: true,
-    tempFileDir: "/tmp/",
-  })
-);
-app.use(
-  cors({
-    origin: "http://localhost:3000",
-    credentials: true,
-  })
-);
-app.use("/api/v1/course", courseRoute);
-app.use("/api/v1/profile", profileRoute);
-app.use("/api/v1/auth", userRoute);
-app.use("/api/v1/payment", paymentRoute);
+app.use(fileUpload({
+    useTempFiles:true,
+    tempFileDir:"/tmp",
+}));
+app.use(cors({
+    origin:'*',
+    credentials:true,
+}));
 
-app.listen(PORT, () => {
-  console.log(`Server is running on ${PORT}`);
-});
+//initiating connections;
+dbConnect.connect();
+cloudinaryConnect();
 
-app.get("/", (req, res) => {
-  res.send("<h1>Hello world</h1>");
-});
+//routes initialized
+app.use("/api/v1/auth" , userRouter );
+app.use("/api/v1/profile" , profileRouter );
+app.use("/api/v1/payment" , paymentRouter );
+app.use("/api/v1/course" , courseRouter );
+
+//server endpoint
+app.get("/",(req,res)=>{
+    res.send("Server is up");
+})
+
+
+//app listener
+app.listen(PORT , ()=>{
+    console.log(`App is listening on port: ${PORT}`);
+})

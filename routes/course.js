@@ -1,78 +1,74 @@
 const express = require("express");
 const router = express.Router();
 
-// Import
-const {
-  createCourse,
-  getAllCourses,
-  getCourseDetail,
-  getInstructorCourses,
-  editCourse,
-  deleteCourse,
-  getFullCourseContent,
-} = require("../controllers/course");
+//route middlewares
+const {auth,isAdmin,isInstructor,isStudent} = require("../middlewares/auth");
 
-const {
-  createCategory,
-  getAllCategory,
-  categoryPageDetails,
-  categoriesSortedPage,
-} = require("../controllers/category");
+//fetching controllers
+const {getCourseDetails,
+    createCourse,
+    getAllCourses,
+    editCourse,
+    getInstructorCourses,
+    deleteCourse,
+    getFullCourseContent,
+    markSubSectionComplete,
+    getInstructorDashboard} = require("../controllers/course");
 
-const {
-  auth,
-  isStudent,
-  isAdmin,
-  isInstructor,
-} = require("../middlewares/auth");
+const {categoryPageDetails,
+    showAllCategories,
+    createCategory,
+    categoryPageDetailsSorted} = require("../controllers/category");
 
-const {
-  createSection,
-  updateSection,
-  deleteSection,
-} = require("../controllers/section");
+const {getAllRatings,
+    getAverageRating,
+    createRating,
+    checkReviewExists} = require("../controllers/rating&review");
 
-const {
-  createSubSection,
-  editSubSection,
-  deleteSubSection,
-} = require("../controllers/subSection");
+const { createSection,
+    updateSection,
+    deleteSection} = require("../controllers/section");
 
-const {
-  createRatingAndReview,
-  getAverageRating,
-  getAllRatingAndReview,
-} = require("../controllers/ratingAndReview");
+const {  createSubSection,
+    updateSubSection,
+    deleteSubSection} = require("../controllers/subSection");
 
-const { updateCourseProgress } = require("../controllers/courseProgress");
 
-// queries
 
-router.post("/createCategory", auth, isAdmin, createCategory);
-router.get("/getAllCatgory", getAllCategory);
-router.post("/categoryPageDetails", categoryPageDetails);
-router.get("/categoriesSortedPage", categoriesSortedPage);
+//routes
+router.post("/getCourseDetails" , getCourseDetails );  //courses
+router.post("/createCourse" , auth , isInstructor , createCourse );
+router.get("/getAllCourses", getAllCourses );
+router.post("/updateCourse",auth,editCourse);
+//few routes pending for courses
+router.get("/getInstructorCourses",auth,isInstructor,getInstructorCourses);
+router.delete("/deleteCourse", auth , isInstructor , deleteCourse);
+router.post("/getFullCourseContent" , auth , isStudent , getFullCourseContent);
+router.post("/updateCourseProgress",auth , isStudent , markSubSectionComplete );
+router.get("/getInstructorStats",auth , isInstructor , getInstructorDashboard)
 
-router.post("/createCourse", auth, isInstructor, createCourse);
-router.get("/getAllCourse", getAllCourses);
-router.get("/getCourseDetail", getCourseDetail);
-router.get("/getInstructorCourses", auth, isInstructor, getInstructorCourses);
-router.get("/getFullCourseContent", getFullCourseContent);
-router.post("/editCourse", auth, isInstructor, editCourse);
-router.post("/deleteCourse", auth, isInstructor, deleteCourse);
+router.post("/createCategory" , auth , isAdmin , createCategory );   //categories
+router.post("/categoryPageDetails" , categoryPageDetails ); //test the sorted one
+router.get("/showAllCategories" , showAllCategories );
 
-router.post("/createSection", auth, isInstructor, createSection);
-router.post("/updateSection", auth, isInstructor, updateSection);
-router.post("/deleteSection", auth, isInstructor, deleteSection);
+ 
+router.get("/getAllRatings" , getAllRatings );  //ratings
+router.get("/getAverageRating" , getAverageRating);
+router.post("/createRating" , auth , isStudent , createRating);
+router.post("/checkExistingReview",auth,isStudent,checkReviewExists);
 
-router.post("/addSubSection", auth, isInstructor, createSubSection);
-router.post("/editSubSection", auth, isInstructor, editSubSection);
-router.post("/deleteSubSection", auth, isInstructor, deleteSubSection);
+                                                        //sections
+router.post("/createSection" , auth , isInstructor , createSection);   ///try using diff http methods acc to req
+router.post("/updateSection" , auth , isInstructor , updateSection);
+router.post("/deleteSection" , auth, isInstructor , deleteSection);
 
-router.post("/createReviewAndRating", auth, isStudent, createRatingAndReview);
-router.get("/getAverageRating", getAverageRating);
-router.get("/getAllRatingAndReview", getAllRatingAndReview);
+                                                        //subSections
+router.post("/createSubSection" , auth , isInstructor ,createSubSection);
+router.post("/updateSubSection" , auth , isInstructor , updateSubSection);
+router.post("/deleteSubSection" , auth , isInstructor , deleteSubSection);
 
-router.post("/updateCourseProgress", auth, isStudent, updateCourseProgress);
+
+
+
 
 module.exports = router;
